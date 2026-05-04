@@ -1,0 +1,2 @@
+# Fichier SQLite : binaire, jamais de merge automatique
+annonces.db binary merge=ours

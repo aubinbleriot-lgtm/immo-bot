@@ -46,8 +46,11 @@ jobs:
         run: |
           git config --global user.email "immo-bot@github-actions"
           git config --global user.name  "Immo Bot"
+          cp annonces.db /tmp/annonces_new.db
+          git fetch origin main
+          git reset --hard origin/main
+          cp /tmp/annonces_new.db annonces.db
           git add annonces.db
           git diff --staged --quiet || \
             git commit -m "chore: digest $(date -u +%Y-%m-%d) [skip ci]"
-          git pull --rebase origin main
           git push
