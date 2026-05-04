@@ -33,6 +33,8 @@ import logging
 import re
 import time
 
+from core.llm import appel_llm
+
 log = logging.getLogger("scorer")
 
 # ── Tables de scoring déterministe ─────────────────────────────────────────
@@ -130,16 +132,7 @@ def score_plan_a(annonce: dict) -> int:
     return min(score, 30)
 
 
-# ── Gemini — analyse texte ──────────────────────────────────────────────────
-
-_GEMINI_CLIENT = None
-
-def _get_client(api_key: str):
-    global _GEMINI_CLIENT
-    if _GEMINI_CLIENT is None:
-        from google import genai
-        _GEMINI_CLIENT = genai.Client(api_key=api_key)
-    return _GEMINI_CLIENT
+# ── LLM — analyse texte (multi-provider) ────────────────────────────────────
 
 
 _SYSTEM = """Tu es un expert en investissement immobilier français.
@@ -170,12 +163,12 @@ Retourne ce JSON :
 }}"""
 
 
-def scorer_annonce(api_key: str, model: str, annonce: dict) -> dict:
+def scorer_annonce(settings, annonce: dict) -> dict:
     """
     Scoring hybride complet :
     1. Calcul déterministe (pondérations du document)
-    2. Bonus qualitatif Gemini (analyse du texte)
-    3. Score final = déterministe + bonus Gemini
+    2. Bonus qualitatif LLM (multi-provider : Groq → OpenRouter → Gemini)
+    3. Score final = déterministe + bonus LLM
     """
     recherche_id = annonce.get("recherche_id", "")
     est_locatif  = "locatif" in recherche_id or annonce.get("type_bien") in ("appartement", "studio")
@@ -184,8 +177,13 @@ def scorer_annonce(api_key: str, model: str, annonce: dict) -> dict:
     score_a_base = score_plan_a(annonce)
     score_b_base = score_plan_b(annonce)
 
-    # Analyse Gemini (bonus qualitatif)
-    gemini_result = _appel_gemini(api_key, model, annonce) if api_key else _gemini_vide()
+    # Analyse LLM (bonus qualitatif) — multi-provider avec fallback
+    has_llm = any([
+        getattr(settings, "GROQ_API_KEY", ""),
+        getattr(settings, "OPENROUTER_API_KEY", ""),
+        getattr(settings, "GEMINI_API_KEY", ""),
+    ])
+    gemini_result = _appel_llm(settings, annonce) if has_llm else _gemini_vide()
 
     # Score final Plan A = base (30) + bonus_a Gemini (0-70)
     score_a = min(score_a_base + gemini_result.get("bonus_a", 0), 100)
@@ -206,7 +204,7 @@ def scorer_annonce(api_key: str, model: str, annonce: dict) -> dict:
     }
 
 
-def _appel_gemini(api_key: str, model: str, annonce: dict) -> dict:
+def _appel_llm(settings, annonce: dict) -> dict:
     prix_m2 = annonce.get("prix_m2")
     if not prix_m2 and annonce.get("prix") and annonce.get("surface"):
         prix_m2 = round(annonce["prix"] / annonce["surface"])
@@ -227,22 +225,12 @@ def _appel_gemini(api_key: str, model: str, annonce: dict) -> dict:
         risques=annonce.get("risque_geo", "N/A"),
         description=(annonce.get("description") or "")[:600],
     )
-    return _with_retry(lambda: _call(api_key, model, prompt))
+    return _with_retry(lambda: _call_llm(settings, prompt))
 
 
-def _call(api_key: str, model: str, prompt: str) -> dict:
-    from google.genai import types
-    client = _get_client(api_key)
-    resp = client.models.generate_content(
-        model=model,
-        config=types.GenerateContentConfig(
-            system_instruction=_SYSTEM,
-            temperature=0.1,
-            max_output_tokens=500,
-        ),
-        contents=prompt,
-    )
-    text = re.sub(r"```json\s*|```\s*", "", resp.text.strip())
+def _call_llm(settings, prompt: str) -> dict:
+    text = appel_llm(settings, _SYSTEM, prompt)
+    text = re.sub(r"```json\s*|```\s*", "", text)
     return json.loads(text)
 
 

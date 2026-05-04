@@ -17,18 +17,19 @@ LOG_DIR.mkdir(exist_ok=True)
 LOG_FILE   = LOG_DIR / "immo-bot.log"
 
 # ── Secrets (GitHub Actions Secrets) ─────────────────────────────────────────
-GEMINI_API_KEY   = os.getenv("GEMINI_API_KEY", "")
-TELEGRAM_TOKEN   = os.getenv("TELEGRAM_TOKEN", "")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
-SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", "")
-EMAIL_TO         = os.getenv("EMAIL_TO", "")
-EMAIL_FROM       = os.getenv("EMAIL_FROM", "immo-bot@noreply.com")
+# ── LLM providers (par ordre de priorité) ────────────────────────────────────
+# Ajouter au moins un dans GitHub Secrets. Le bot utilise le premier disponible
+# et bascule automatiquement sur le suivant en cas de quota dépassé.
 
-# Modèles Gemini (gratuits)
-# gemini-2.0-flash : 1 500 req/jour gratuits → scoring annonces
-# gemini-1.5-pro   : 50 req/jour gratuits    → analyse approfondie
-GEMINI_MODEL_FAST = "gemini-2.0-flash"
-GEMINI_MODEL      = "gemini-2.0-flash"
+GROQ_API_KEY      = os.getenv("GROQ_API_KEY", "")        # groq.com — gratuit, rapide
+OPENROUTER_API_KEY= os.getenv("OPENROUTER_API_KEY", "")  # openrouter.ai — 11+ modèles gratuits
+GEMINI_API_KEY    = os.getenv("GEMINI_API_KEY", "")       # aistudio.google.com — fallback
+
+TELEGRAM_TOKEN    = os.getenv("TELEGRAM_TOKEN", "")
+TELEGRAM_CHAT_ID  = os.getenv("TELEGRAM_CHAT_ID", "")
+SENDGRID_API_KEY  = os.getenv("SENDGRID_API_KEY", "")
+EMAIL_TO          = os.getenv("EMAIL_TO", "")
+EMAIL_FROM        = os.getenv("EMAIL_FROM", "immo-bot@noreply.com")
 
 # ── Config dynamique (config.json) ───────────────────────────────────────────
 def _load_config() -> dict:

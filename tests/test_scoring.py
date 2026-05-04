@@ -1,6 +1,8 @@
 """Tests unitaires — moteur de scoring hybride."""
 
 import pytest
+import types as _types
+
 from core.scorer import (
     score_plan_a, score_plan_b,
     _score_dpe, _score_rendement, _score_prix_marche,
@@ -161,25 +163,35 @@ class TestVerdictAuto:
         assert _verdict_auto(score) == verdict
 
 
+@pytest.fixture
+def settings_mock():
+    """Settings mock sans clé API → pas d'appel LLM, bonus Gemini = valeurs par défaut."""
+    s = _types.SimpleNamespace()
+    s.GROQ_API_KEY       = ""
+    s.OPENROUTER_API_KEY = ""
+    s.GEMINI_API_KEY     = ""
+    return s
+
+
 class TestScorerAnnonceSansGemini:
-    def test_locatif_retourne_score_b(self, annonce_locatif):
-        result = scorer_annonce("", "gemini-2.0-flash", annonce_locatif)
+    def test_locatif_retourne_score_b(self, annonce_locatif, settings_mock):
+        result = scorer_annonce(settings_mock, annonce_locatif)
         assert result["score_final"] == result["score_b"]
         assert 0 <= result["score_final"] <= 100
 
-    def test_residence_retourne_score_a(self, annonce_residence):
-        result = scorer_annonce("", "gemini-2.0-flash", annonce_residence)
+    def test_residence_retourne_score_a(self, annonce_residence, settings_mock):
+        result = scorer_annonce(settings_mock, annonce_residence)
         assert result["score_final"] == result["score_a"]
         assert 0 <= result["score_final"] <= 100
 
-    def test_structure_retour(self, annonce_locatif):
-        result = scorer_annonce("", "gemini-2.0-flash", annonce_locatif)
+    def test_structure_retour(self, annonce_locatif, settings_mock):
+        result = scorer_annonce(settings_mock, annonce_locatif)
         for key in ("score_a", "score_b", "score_final", "verdict",
                     "points_forts", "points_vigilance", "questions", "resume_ia"):
             assert key in result, f"Clé manquante : {key}"
 
-    def test_sans_prix(self):
+    def test_sans_prix(self, settings_mock):
         annonce = {"id": "x", "source": "lbc", "recherche_id": "locatif_grenoble",
                    "titre": "Test", "url": "https://x.com"}
-        result = scorer_annonce("", "gemini-2.0-flash", annonce)
+        result = scorer_annonce(settings_mock, annonce)
         assert isinstance(result["score_final"], int)

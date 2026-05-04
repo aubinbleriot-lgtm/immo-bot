@@ -90,7 +90,7 @@ def main():
     log.info(f"À scorer : {len(a_scorer)} (workers={settings.SCORING_WORKERS})")
 
     def _scorer_une(annonce):
-        scoring = scorer_annonce(settings.GEMINI_API_KEY, settings.GEMINI_MODEL_FAST, annonce)
+        scoring = scorer_annonce(settings, annonce)
         return annonce["id"], scoring
 
     completed = 0
