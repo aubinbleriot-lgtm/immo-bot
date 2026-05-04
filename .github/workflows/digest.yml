@@ -46,11 +46,17 @@ jobs:
         run: |
           git config --global user.email "immo-bot@github-actions"
           git config --global user.name  "Immo Bot"
+          # Sauvegarder nos nouvelles données
           cp annonces.db /tmp/annonces_new.db
+          # Récupérer le dernier état du remote
           git fetch origin main
           git reset --hard origin/main
+          # Restaurer nos données par-dessus
           cp /tmp/annonces_new.db annonces.db
           git add annonces.db
           git diff --staged --quiet || \
             git commit -m "chore: digest $(date -u +%Y-%m-%d) [skip ci]"
-          git push
+          # --force-with-lease : push forcé sécurisé
+          # Échoue seulement si le remote a bougé APRÈS notre fetch ci-dessus
+          # (cas quasi-impossible en pratique, le bot est le seul à écrire db)
+          git push --force-with-lease
