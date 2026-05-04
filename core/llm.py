@@ -26,19 +26,19 @@ PROVIDERS = [
         "base_url": "https://api.groq.com/openai/v1",
         "model":    "llama-3.3-70b-versatile",
         "max_tokens": 600,
-        "rpm_limit":  25,   # 30 RPM officiel, on prend 25 par sécurité
+        "rpm_limit":  25,   # 30 RPM officiel — scoring séquentiel évite le dépassement
     },
     {
         "name":     "openrouter",
         "env_key":  "OPENROUTER_API_KEY",
         "base_url": "https://openrouter.ai/api/v1",
-        "model":    "deepseek/deepseek-r1:free",
+        "model":    "meta-llama/llama-3.3-70b-instruct:free",
         "max_tokens": 600,
         "rpm_limit":  18,
     },
     {
         "name":     "gemini",
-        "env_key":  "GEMINI_API_KEY",
+        "env_key":  "GEMINI_API_KEY",  # dernier recours — quota gratuit épuisable rapidement
         "base_url": None,   # SDK natif
         "model":    "gemini-2.0-flash",
         "max_tokens": 600,
@@ -76,6 +76,8 @@ def appel_llm(settings, system: str, prompt: str) -> str:
             else:
                 result = _call_openai_compat(provider, system, prompt)
             log.debug(f"LLM {provider['name']} OK")
+            # Délai minimal pour respecter le RPM (60s / rpm_limit)
+            time.sleep(60 / provider.get("rpm_limit", 20))
             return result
         except Exception as e:
             last_err = e

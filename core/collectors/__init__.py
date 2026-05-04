@@ -46,20 +46,29 @@ def collecter_tout(settings) -> list:
     log.info(f"Total tâches de collecte : {len(tasks)}")
 
     # Parallélisme léger (2 workers max pour ne pas surcharger les sites)
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        futures = {
-            executor.submit(_run_collector, dotpath, recherche): (source_name, recherche["id"])
-            for source_name, dotpath, recherche in tasks
-        }
-        for future in as_completed(futures):
-            source, rid = futures[future]
-            try:
-                annonces = future.result()
-                toutes.extend(annonces)
-                log.info(f"  ✓ {source}/{rid} → {len(annonces)} annonces")
-            except Exception as e:
-                log.error(f"  ✗ {source}/{rid} → erreur : {e}")
+    # LBC doit tourner en série (Datadome bloque les appels parallèles)
+    # Autres sources : 2 workers en parallèle
+    lbc_tasks    = [(s,d,r) for s,d,r in tasks if s == "leboncoin"]
+    autres_tasks = [(s,d,r) for s,d,r in tasks if s != "leboncoin"]
 
+    def run_tasks(task_list, workers=2):
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {
+                executor.submit(_run_collector, dotpath, recherche): (source_name, recherche["id"])
+                for source_name, dotpath, recherche in task_list
+            }
+            for future in as_completed(futures):
+                source, rid = futures[future]
+                try:
+                    annonces = future.result()
+                    toutes.extend(annonces)
+                    log.info(f"  ✓ {source}/{rid} → {len(annonces)} annonces")
+                except Exception as e:
+                    log.error(f"  ✗ {source}/{rid} → erreur : {e}")
+
+    # LBC en série (workers=1), autres en parallèle (workers=2)
+    run_tasks(lbc_tasks, workers=1)
+    run_tasks(autres_tasks, workers=2)
     log.info(f"Collecte terminée : {len(toutes)} annonces brutes")
     return toutes
 

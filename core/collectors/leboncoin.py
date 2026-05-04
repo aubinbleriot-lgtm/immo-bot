@@ -103,7 +103,7 @@ class LeBonCoinCollector(BaseCollector):
                     annonces.append(self._norm(raw))
 
             log.info(f"LBC [{r['id']}] → {len(annonces)} annonces")
-            delai_humain(2, 5)
+            delai_humain(15, 30)  # Datadome : délai long obligatoire entre recherches LBC
 
         except Exception as e:
             log.error(f"LBC erreur [{r['id']}] : {e}")

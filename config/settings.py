@@ -49,7 +49,7 @@ SCORE_MIN_SAVE       = _cfg.get("score_min_save", 30)         # sauvegarder en D
 
 MAX_ANNONCES_PAR_RUN = _cfg.get("max_annonces_par_run", 50)
 MAX_ANNONCES_SCORING = _cfg.get("max_annonces_scoring", 30)
-SCORING_WORKERS      = _cfg.get("scoring_workers", 3)
+SCORING_WORKERS      = _cfg.get("scoring_workers", 1)   # séquentiel pour respecter RPM Groq
 
 # ── Critères de recherche ─────────────────────────────────────────────────────
 RECHERCHES = _cfg.get("recherches", [
