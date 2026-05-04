@@ -1,0 +1,65 @@
+name: Immo Bot — Collecte automatique
+
+on:
+  schedule:
+    - cron: '0,30 6-21 * * *'   # 6h-21h UTC (8h-23h Paris), toutes les 30 min
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# CRITIQUE : empêche deux runs simultanés de corrompre annonces.db
+# cancel-in-progress: false = on attend, on n'annule pas
+concurrency:
+  group: immo-bot-scrape
+  cancel-in-progress: false
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25   # kill au bout de 25 min si bloqué
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Installer dépendances Python
+        run: pip install -r requirements.txt
+
+      # Cache Playwright : évite de télécharger 500 MB à chaque run
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: playwright-chromium-${{ runner.os }}-
+
+      - name: Installer Playwright Chromium
+        run: playwright install chromium --with-deps
+
+      - name: Lancer le bot
+        env:
+          GEMINI_API_KEY:   ${{ secrets.GEMINI_API_KEY }}
+          TELEGRAM_TOKEN:   ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          EMAIL_TO:         ${{ secrets.EMAIL_TO }}
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+        run: python run_scrape.py
+
+      - name: Sauvegarder annonces.db dans Git
+        run: |
+          git config --global user.email "immo-bot@github-actions"
+          git config --global user.name  "Immo Bot"
+          git add annonces.db
+          # NE PAS committer les logs (git add logs/ supprimé)
+          git diff --staged --quiet || \
+            git commit -m "chore: annonces $(date -u +%Y-%m-%dT%H:%M) [skip ci]"
+          git push
