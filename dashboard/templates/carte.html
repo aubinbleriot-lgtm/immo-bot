@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Immo Bot — Carte</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; }
+  header { background: #1d4ed8; color: white; padding: .8rem 1.5rem; display: flex; align-items: center; gap: 1.5rem; }
+  header h1 { font-size: 1.1rem; font-weight: 600; }
+  header nav a { color: rgba(255,255,255,.8); text-decoration: none; font-size: .88rem; }
+  header nav a:hover { color: white; }
+  .controls { background: white; padding: .6rem 1.5rem; border-bottom: 1px solid #e5e7eb; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+  .controls select, .controls input { padding: .35rem .7rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: .82rem; }
+  .controls label { font-size: .82rem; color: #6b7280; }
+  #map { flex: 1; }
+  .legend { position: absolute; bottom: 30px; right: 10px; z-index: 1000; background: white; border-radius: 8px; padding: 10px 14px; border: 1px solid #e5e7eb; font-size: .78rem; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+  .legend-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+  .popup-title { font-weight: 600; font-size: .95rem; margin-bottom: .4rem; }
+  .popup-meta  { font-size: .8rem; color: #6b7280; margin-bottom: .3rem; }
+  .popup-score { font-size: 1.1rem; font-weight: 700; }
+  .popup-btn   { display: inline-block; margin-top: .6rem; background: #1d4ed8; color: white; padding: 4px 12px; border-radius: 6px; text-decoration: none; font-size: .8rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🗺️ Immo Bot — Carte</h1>
+  <nav><a href="/">← Tableau</a></nav>
+</header>
+
+<div class="controls">
+  <label>Score min
+    <input type="number" id="f-score" value="0" min="0" max="100" style="width:65px" onchange="recharger()">
+  </label>
+  <label>Source
+    <select id="f-source" onchange="recharger()">
+      <option value="">Toutes</option>
+      <option value="leboncoin">LeBonCoin</option>
+      <option value="bienici">Bien'ici</option>
+      <option value="seloger">SeLoger</option>
+      <option value="pap">PAP</option>
+      <option value="figaro">Figaro</option>
+    </select>
+  </label>
+  <label>Recherche
+    <select id="f-recherche" onchange="recharger()">
+      <option value="">Toutes</option>
+      <option value="locatif_grenoble">Locatif Grenoble</option>
+      <option value="locatif_lyon">Locatif Lyon</option>
+      <option value="locatif_clermont">Locatif Clermont</option>
+      <option value="residence_isere">Résidence Isère</option>
+    </select>
+  </label>
+  <span id="count" style="font-size:.82rem;color:#6b7280;margin-left:.5rem"></span>
+</div>
+
+<div id="map"></div>
+
+<div class="legend">
+  <div class="legend-row"><span class="legend-dot" style="background:#16a34a"></span> Pépite (≥70)</div>
+  <div class="legend-row"><span class="legend-dot" style="background:#d97706"></span> Intéressant (50-69)</div>
+  <div class="legend-row"><span class="legend-dot" style="background:#9ca3af"></span> Moyen (&lt;50 / N/A)</div>
+  <div class="legend-row"><span class="legend-dot" style="background:#1d4ed8; opacity:.5"></span> Campus</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+<script>
+const map = L.map("map").setView([45.19, 5.74], 10);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  maxZoom: 18,
+}).addTo(map);
+
+const CAMPUS = [
+  {nom: "UGA Domaine Univ.", lat: 45.1933, lng: 5.7687},
+  {nom: "Grenoble INP",      lat: 45.1956, lng: 5.7698},
+  {nom: "Sciences Po Gren.", lat: 45.1880, lng: 5.7262},
+  {nom: "Campus La Doua",    lat: 45.7824, lng: 4.8692},
+  {nom: "Lyon 2 Berges",     lat: 45.7490, lng: 4.8334},
+];
+
+// Marqueurs campus (couche séparée)
+const campusLayer = L.layerGroup();
+CAMPUS.forEach(c => {
+  L.circleMarker([c.lat, c.lng], {
+    radius: 10, color: "#1d4ed8", fillColor: "#1d4ed8",
+    fillOpacity: 0.3, weight: 2,
+  }).bindPopup(`<b>🎓 ${c.nom}</b>`).addTo(campusLayer);
+});
+campusLayer.addTo(map);
+
+let clusterLayer = null;
+
+function couleur(score) {
+  if (!score) return "#9ca3af";
+  if (score >= 70) return "#16a34a";
+  if (score >= 50) return "#d97706";
+  return "#9ca3af";
+}
+
+async function recharger() {
+  const source    = document.getElementById("f-source").value;
+  const minScore  = document.getElementById("f-score").value;
+  const recherche = document.getElementById("f-recherche").value;
+
+  const data = await fetch(
+    `/api/annonces?source=${source}&min_score=${minScore}&recherche=${recherche}&limite=300`
+  ).then(r => r.json());
+
+  // Filtrer celles qui ont des coordonnées
+  const avecCoord = data.filter(a => a.lat && a.lng);
+  document.getElementById("count").textContent =
+    `${avecCoord.length} annonce(s) sur la carte (${data.length} total)`;
+
+  if (clusterLayer) map.removeLayer(clusterLayer);
+  clusterLayer = L.markerClusterGroup({
+    maxClusterRadius: 40,
+    iconCreateFunction: cluster => {
+      const c = cluster.getChildCount();
+      return L.divIcon({
+        html: `<div style="background:#1d4ed8;color:white;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;">${c}</div>`,
+        className: "", iconSize: [32, 32],
+      });
+    }
+  });
+
+  avecCoord.forEach(a => {
+    const col   = couleur(a.score_final);
+    const prix  = a.prix ? a.prix.toLocaleString("fr-FR") + " €" : "N/A";
+    const surf  = a.surface ? `${a.surface} m²` : "";
+    const pm2   = a.prix_m2 ? `${Math.round(a.prix_m2)} €/m²` : "";
+    const rdt   = a.rendement_brut ? `📈 ${a.rendement_brut}% brut` : "";
+    const campus= a.dist_campus_km ? `🎓 ${a.dist_campus_km} km campus` : "";
+
+    const marker = L.circleMarker([a.lat, a.lng], {
+      radius: a.score_final ? Math.max(7, Math.min(14, a.score_final / 8)) : 7,
+      color: col, fillColor: col, fillOpacity: 0.75, weight: 2,
+    });
+
+    marker.bindPopup(`
+      <div class="popup-score" style="color:${col}">${a.score_final ?? "?"}/100</div>
+      <div class="popup-title">${esc(a.titre)}</div>
+      <div class="popup-meta">📍 ${esc(a.ville||"")} · ${(a.source||"").toUpperCase()}</div>
+      <div class="popup-meta">💰 ${prix} · ${surf} · ${pm2}</div>
+      ${rdt    ? `<div class="popup-meta">${rdt}</div>` : ""}
+      ${campus ? `<div class="popup-meta">${campus}</div>` : ""}
+      ${a.resume_ia ? `<div class="popup-meta" style="margin-top:.4rem;font-style:italic">${esc(a.resume_ia)}</div>` : ""}
+      <a class="popup-btn" href="${a.url}" target="_blank">Voir l'annonce →</a>
+    `);
+    clusterLayer.addLayer(marker);
+  });
+
+  map.addLayer(clusterLayer);
+}
+
+function esc(s) {
+  return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+L.control.layers({}, {"Campus": campusLayer}).addTo(map);
+recharger();
+</script>
+</body>
+</html>

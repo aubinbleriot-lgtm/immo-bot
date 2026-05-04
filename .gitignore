@@ -1,0 +1,13 @@
+*.pyc
+__pycache__/
+.env
+.env.local
+*.log
+logs/
+.DS_Store
+*.egg-info/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Ne PAS ignorer annonces.db — persistance du bot

@@ -1,0 +1,42 @@
+name: Tests CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Installer dépendances (sans Playwright)
+        run: |
+          pip install pytest pytest-cov
+          pip install lbc requests beautifulsoup4 lxml feedparser \
+                      google-genai python-dotenv tenacity geopy
+
+      - name: Lancer les tests
+        run: |
+          python -m pytest tests/ -v \
+            --cov=core \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            -x
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage.xml

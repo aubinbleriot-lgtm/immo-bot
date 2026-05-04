@@ -1,0 +1,79 @@
+{
+  "score_alert_telegram": 75,
+  "score_alert_email": 60,
+  "score_min_save": 30,
+  "max_annonces_par_run": 50,
+  "max_annonces_scoring": 30,
+  "scoring_workers": 3,
+
+  "sources": {
+    "leboncoin": true,
+    "bienici":   true,
+    "seloger":   true,
+    "pap":       true,
+    "figaro":    true
+  },
+
+  "recherches": [
+    {
+      "id": "locatif_grenoble",
+      "label": "Locatif étudiant — Grenoble",
+      "type": "locatif",
+      "ville": "Grenoble",
+      "lat": 45.1875602,
+      "lng": 5.7357819,
+      "rayon_km": 5,
+      "prix_min": 50000,
+      "prix_max": 150000,
+      "surface_min": 15,
+      "surface_max": 40,
+      "types_bien": ["appartement"],
+      "actif": true
+    },
+    {
+      "id": "locatif_lyon",
+      "label": "Locatif étudiant — Lyon",
+      "type": "locatif",
+      "ville": "Lyon",
+      "lat": 45.7640385,
+      "lng": 4.8356938,
+      "rayon_km": 5,
+      "prix_min": 60000,
+      "prix_max": 180000,
+      "surface_min": 15,
+      "surface_max": 40,
+      "types_bien": ["appartement"],
+      "actif": true
+    },
+    {
+      "id": "locatif_clermont",
+      "label": "Locatif étudiant — Clermont-Ferrand",
+      "type": "locatif",
+      "ville": "Clermont-Ferrand",
+      "lat": 45.7772,
+      "lng": 3.0870,
+      "rayon_km": 5,
+      "prix_min": 40000,
+      "prix_max": 120000,
+      "surface_min": 15,
+      "surface_max": 40,
+      "types_bien": ["appartement"],
+      "actif": true
+    },
+    {
+      "id": "residence_isere",
+      "label": "Résidence principale — Isère (rayon 30km Grenoble)",
+      "type": "residence",
+      "ville": "Grenoble",
+      "lat": 45.1875602,
+      "lng": 5.7357819,
+      "rayon_km": 30,
+      "prix_min": 150000,
+      "prix_max": 420000,
+      "surface_min": 80,
+      "surface_max": 300,
+      "types_bien": ["maison"],
+      "actif": true
+    }
+  ]
+}
