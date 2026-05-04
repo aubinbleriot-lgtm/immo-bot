@@ -19,6 +19,7 @@ PRAGMA synchronous=NORMAL;
 
 CREATE TABLE IF NOT EXISTS annonces (
     id              TEXT PRIMARY KEY,
+    empreinte       TEXT,              -- empreinte cross-source (ville+surface+prix+pièces)
     source          TEXT NOT NULL,
     recherche_id    TEXT NOT NULL,
     type_bien       TEXT,
@@ -69,6 +70,7 @@ CREATE TABLE IF NOT EXISTS annonces (
     date_modif      TEXT
 );
 
+CREATE INDEX IF NOT EXISTS idx_empreinte ON annonces(empreinte);
 CREATE INDEX IF NOT EXISTS idx_statut    ON annonces(statut);
 CREATE INDEX IF NOT EXISTS idx_score     ON annonces(score_final);
 CREATE INDEX IF NOT EXISTS idx_date_vue  ON annonces(date_vue);
@@ -124,19 +126,40 @@ class ImmoDB:
 
     # ── Existence ─────────────────────────────────────────────────────────
     def existe(self, annonce_id: str) -> bool:
+        """Vérifie si cet ID exact existe déjà (même source, même URL)."""
         cur = self._conn().execute("SELECT 1 FROM annonces WHERE id=?", (annonce_id,))
+        return cur.fetchone() is not None
+
+    def empreinte_existe(self, empreinte: str | None) -> bool:
+        """
+        Vérifie si un bien avec la même empreinte physique existe déjà,
+        quelle que soit la source ou la date.
+        Empêche qu'un même logement soit analysé depuis LBC ET Bien'ici,
+        ou réinséré le lendemain si l'annonce est toujours active.
+        """
+        if not empreinte:
+            return False
+        cur = self._conn().execute(
+            "SELECT 1 FROM annonces WHERE empreinte=?", (empreinte,)
+        )
         return cur.fetchone() is not None
 
     # ── Insertion ─────────────────────────────────────────────────────────
     def inserer(self, a: dict) -> bool:
+        # Dédup 1 : même URL + source (même annonce exacte)
         if self.existe(a["id"]):
+            return False
+        # Dédup 2 : même bien physique sur une autre source ou un autre jour
+        if self.empreinte_existe(a.get("empreinte")):
+            log.debug(f"Doublon cross-source ignoré : {a.get('titre','')[:50]} "
+                      f"(empreinte={a.get('empreinte')})")
             return False
         now = datetime.now().isoformat()
         prix   = a.get("prix")
         surf   = a.get("surface")
         prix_m2 = round(prix / surf) if prix and surf and surf > 0 else None
         params = {
-            "id": a["id"], "source": a["source"],
+            "id": a["id"], "empreinte": a.get("empreinte"), "source": a["source"],
             "recherche_id": a.get("recherche_id",""),
             "type_bien": a.get("type_bien"),
             "titre": a["titre"],
@@ -151,12 +174,12 @@ class ImmoDB:
         }
         self._conn().execute("""
             INSERT OR IGNORE INTO annonces (
-                id, source, recherche_id, type_bien, titre, prix, surface, prix_m2,
+                id, empreinte, source, recherche_id, type_bien, titre, prix, surface, prix_m2,
                 ville, code_postal, adresse, lat, lng, url, description,
                 nb_pieces, nb_chambres, dpe, ges, charges,
                 date_publiee, date_vue, statut, date_modif
             ) VALUES (
-                :id,:source,:recherche_id,:type_bien,:titre,:prix,:surface,:prix_m2,
+                :id,:empreinte,:source,:recherche_id,:type_bien,:titre,:prix,:surface,:prix_m2,
                 :ville,:code_postal,:adresse,:lat,:lng,:url,:description,
                 :nb_pieces,:nb_chambres,:dpe,:ges,:charges,
                 :date_publiee,:date_vue,'nouveau',:date_modif

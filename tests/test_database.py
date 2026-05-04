@@ -19,19 +19,27 @@ def db(tmp_path):
 
 def _annonce(n=1, source="lbc", recherche="locatif_grenoble", **kwargs):
     url = f"https://example.com/{n}"
-    return {
+    base = {
         "id":           annonce_hash(source, url),
         "source":       source,
         "recherche_id": recherche,
         "type_bien":    "appartement",
         "titre":        f"Studio test {n}",
-        "prix":         80_000 + n * 1000,
-        "surface":      20.0 + n,
+        "prix":         80_000 + n * 10_000,   # écart 10k→empreinte unique
+        "surface":      20.0 + n * 5,             # écart 5m²→empreinte unique
         "ville":        "Grenoble",
         "url":          url,
         "description":  f"Description {n}",
         **kwargs,
     }
+    # Calcule l'empreinte cross-source automatiquement
+    from core.collectors.base import empreinte_bien as _emp
+    if base.get("empreinte") is None:
+        base["empreinte"] = _emp(
+            base.get("ville"), base.get("surface"),
+            base.get("prix"), base.get("nb_pieces")
+        )
+    return base
 
 
 class TestInsertion:
@@ -58,6 +66,91 @@ class TestInsertion:
         row = db.a_scorer(limite=1)[0]
         assert row["prix_m2"] == 4000.0
 
+
+
+
+class TestDeduplicationCrossSource:
+    def test_meme_bien_deux_sources(self, db):
+        """Même logement sur LBC et Bien'ici → une seule entrée en DB."""
+        a_lbc = _annonce(1, source="leboncoin",
+                         prix=85000, surface=22.0, ville="Grenoble", nb_pieces=1)
+        a_bienici = {
+            **a_lbc,
+            "id":     annonce_hash("bienici", "https://bienici.com/studio-999"),
+            "source": "bienici",
+            "url":    "https://bienici.com/studio-999",
+            # même empreinte car même ville+surface+prix+pièces
+        }
+        assert db.inserer(a_lbc)    is True,  "LBC doit être inséré"
+        assert db.inserer(a_bienici) is False, "Doublon cross-source doit être bloqué"
+        assert sum(db.stats().values()) == 1
+
+    def test_meme_bien_trois_sources(self, db):
+        """Même bien sur LBC, Bien'ici et PAP → une seule entrée."""
+        base = {"prix": 90000, "surface": 25.0, "ville": "Grenoble", "nb_pieces": 2}
+        sources = [
+            ("leboncoin", "https://lbc.fr/1"),
+            ("bienici",   "https://bienici.com/1"),
+            ("pap",       "https://pap.fr/1"),
+        ]
+        resultats = []
+        for source, url in sources:
+            a = {**_annonce(1, source=source), **base,
+                 "id": annonce_hash(source, url), "url": url}
+            from core.collectors.base import empreinte_bien
+            a["empreinte"] = empreinte_bien(
+                base["ville"], base["surface"], base["prix"], base["nb_pieces"]
+            )
+            resultats.append(db.inserer(a))
+        assert resultats == [True, False, False], (
+            f"Seul le premier doit être inséré, résultats: {resultats}"
+        )
+
+    def test_meme_bien_jours_differents(self, db):
+        """Annonce toujours active le lendemain → non réinsérée."""
+        a = _annonce(1, source="leboncoin", prix=85000, surface=22.0, nb_pieces=1)
+        db.inserer(a)
+        # Simuler J+1 : même annonce, URL identique
+        assert db.inserer(a) is False, "Réinsertion le lendemain doit être bloquée"
+
+    def test_biens_differents_non_bloques(self, db):
+        """Deux biens différents de la même source → tous les deux insérés."""
+        a1 = _annonce(1, source="leboncoin", prix=85000, surface=22.0, nb_pieces=1)
+        a2 = _annonce(2, source="leboncoin", prix=120000, surface=35.0, nb_pieces=2)
+        assert db.inserer(a1) is True
+        assert db.inserer(a2) is True
+        assert sum(db.stats().values()) == 2
+
+    def test_sans_empreinte_pas_bloque(self, db):
+        """Annonce sans prix/surface → empreinte None → pas de blocage."""
+        a1 = {**_annonce(1), "prix": None, "surface": None, "empreinte": None}
+        a2 = {**_annonce(2), "prix": None, "surface": None, "empreinte": None}
+        assert db.inserer(a1) is True
+        assert db.inserer(a2) is True  # empreinte None → pas de dédup cross-source
+
+    def test_empreinte_tolerante_surface(self, db):
+        """Surface 22 m² vs 22.3 m² → même empreinte → doublon détecté."""
+        from core.collectors.base import empreinte_bien
+        a1 = {**_annonce(1, source="lbc"),
+              "prix": 85000, "surface": 22.0,
+              "empreinte": empreinte_bien("Grenoble", 22.0, 85000, 1)}
+        a2 = {**_annonce(2, source="bienici"),
+              "prix": 85000, "surface": 22.3,   # légèrement différent
+              "empreinte": empreinte_bien("Grenoble", 22.3, 85000, 1)}
+        assert a1["empreinte"] == a2["empreinte"], "Les empreintes doivent être égales"
+        db.inserer(a1)
+        assert db.inserer(a2) is False
+
+    def test_empreinte_stricte_pieces(self, db):
+        """T1 vs T2 → empreintes différentes → tous les deux insérés."""
+        from core.collectors.base import empreinte_bien
+        a1 = {**_annonce(1), "prix": 85000, "surface": 30.0, "nb_pieces": 1,
+              "empreinte": empreinte_bien("Grenoble", 30.0, 85000, 1)}
+        a2 = {**_annonce(2), "prix": 85000, "surface": 30.0, "nb_pieces": 2,
+              "empreinte": empreinte_bien("Grenoble", 30.0, 85000, 2)}
+        assert a1["empreinte"] != a2["empreinte"]
+        assert db.inserer(a1) is True
+        assert db.inserer(a2) is True
 
 class TestEnrichissement:
     def test_mettre_a_jour_geo(self, db):

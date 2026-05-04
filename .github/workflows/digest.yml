@@ -2,15 +2,20 @@ name: Immo Bot — Digest quotidien
 
 on:
   schedule:
-    - cron: '0 7 * * *'    # chaque matin à 7h UTC (9h Paris)
+    - cron: '0 18 * * *'   # 18h UTC = 20h Paris — après la collecte du matin
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: immo-bot-digest
+  cancel-in-progress: false
+
 jobs:
   digest:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repo
@@ -25,9 +30,10 @@ jobs:
           cache: 'pip'
 
       - name: Installer dépendances
-        run: pip install -r requirements.txt
+        run: |
+          pip install requests sendgrid google-genai python-dotenv
 
-      - name: Envoyer le digest du jour
+      - name: Envoyer le digest
         env:
           GEMINI_API_KEY:   ${{ secrets.GEMINI_API_KEY }}
           TELEGRAM_TOKEN:   ${{ secrets.TELEGRAM_TOKEN }}
@@ -36,11 +42,11 @@ jobs:
           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
         run: python run_digest.py
 
-      - name: Commit statuts mis à jour
+      - name: Sauvegarder statuts
         run: |
           git config --global user.email "immo-bot@github-actions"
           git config --global user.name  "Immo Bot"
-          git add annonces.db || true
+          git add annonces.db
           git diff --staged --quiet || \
-            git commit -m "chore: digest quotidien [skip ci]"
+            git commit -m "chore: digest $(date -u +%Y-%m-%d) [skip ci]"
           git push

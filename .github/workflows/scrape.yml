@@ -1,15 +1,14 @@
-name: Immo Bot — Collecte automatique
+name: Immo Bot — Collecte quotidienne
 
 on:
   schedule:
-    - cron: '0,30 6-21 * * *'   # 6h-21h UTC (8h-23h Paris), toutes les 30 min
-  workflow_dispatch:
+    - cron: '0 7 * * *'    # chaque matin à 7h UTC (9h Paris)
+  workflow_dispatch:        # déclenchement manuel depuis GitHub
 
 permissions:
   contents: write
 
-# CRITIQUE : empêche deux runs simultanés de corrompre annonces.db
-# cancel-in-progress: false = on attend, on n'annule pas
+# Un seul run à la fois — jamais deux collectes parallèles
 concurrency:
   group: immo-bot-scrape
   cancel-in-progress: false
@@ -17,7 +16,7 @@ concurrency:
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 25   # kill au bout de 25 min si bloqué
+    timeout-minutes: 40
 
     steps:
       - name: Checkout repo
@@ -34,7 +33,6 @@ jobs:
       - name: Installer dépendances Python
         run: pip install -r requirements.txt
 
-      # Cache Playwright : évite de télécharger 500 MB à chaque run
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
@@ -54,12 +52,11 @@ jobs:
           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
         run: python run_scrape.py
 
-      - name: Sauvegarder annonces.db dans Git
+      - name: Sauvegarder annonces.db
         run: |
           git config --global user.email "immo-bot@github-actions"
           git config --global user.name  "Immo Bot"
           git add annonces.db
-          # NE PAS committer les logs (git add logs/ supprimé)
           git diff --staged --quiet || \
-            git commit -m "chore: annonces $(date -u +%Y-%m-%dT%H:%M) [skip ci]"
+            git commit -m "chore: collecte quotidienne $(date -u +%Y-%m-%d) [skip ci]"
           git push
