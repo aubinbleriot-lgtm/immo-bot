@@ -27,7 +27,8 @@ _TYPE_MAP = {
 _TYPES_COMMERCIAUX = {
     "bureau", "local", "entrepôt", "commerce", "local commercial",
     "local d'activité", "fonds de commerce", "murs commerciaux",
-    "cellule", "hangar", "terrain commercial",
+    "cellule", "hangar", "terrain commercial", "boutique",
+    "immeuble de rapport", "parking", "garage",
 }
 
 
@@ -38,7 +39,8 @@ def _est_commercial(ad: dict) -> bool:
     if pt in _TYPES_COMMERCIAUX:
         return True
     mots = ["entrepôt", "local d'activité", "local commercial", "cellule d'activité",
-            "fonds de commerce", "bureau à louer", "logistique"]
+            "fonds de commerce", "bureau à louer", "logistique",
+            "murs commerciaux", "local professionnel", "à louer"]
     return any(m in titre for m in mots)
 
 

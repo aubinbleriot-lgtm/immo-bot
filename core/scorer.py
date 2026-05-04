@@ -225,28 +225,13 @@ def _appel_llm(settings, annonce: dict) -> dict:
         risques=annonce.get("risque_geo", "N/A"),
         description=(annonce.get("description") or "")[:600],
     )
-    return _with_retry(lambda: _call_llm(settings, prompt))
-
-
-def _call_llm(settings, prompt: str) -> dict:
-    text = appel_llm(settings, _SYSTEM, prompt)
-    text = re.sub(r"```json\s*|```\s*", "", text)
-    return json.loads(text)
-
-
-def _with_retry(fn, retries: int = 3) -> dict:
-    for attempt in range(retries):
-        try:
-            return fn()
-        except Exception as e:
-            if attempt == retries - 1:
-                log.error(f"Gemini échec après {retries} tentatives : {e}")
-                return _gemini_vide()
-            m = re.search(r"retryDelay.*?(\d+)s", str(e))
-            wait = int(m.group(1)) + 2 if m else min(2 ** (attempt + 2), 30)
-            log.warning(f"Gemini retry dans {wait}s : {e}")
-            time.sleep(wait)
-    return _gemini_vide()
+    try:
+        text = appel_llm(settings, _SYSTEM, prompt)
+        text = re.sub(r"```json\s*|```\s*", "", text)
+        return json.loads(text)
+    except Exception as e:
+        log.warning(f"LLM scoring échoué, scoring déterministe seul : {str(e)[:80]}")
+        return _gemini_vide()
 
 
 def _gemini_vide() -> dict:
