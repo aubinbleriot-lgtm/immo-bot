@@ -29,7 +29,7 @@ TELEGRAM_TOKEN    = os.getenv("TELEGRAM_TOKEN", "")
 TELEGRAM_CHAT_ID  = os.getenv("TELEGRAM_CHAT_ID", "")
 SENDGRID_API_KEY  = os.getenv("SENDGRID_API_KEY", "")
 EMAIL_TO          = os.getenv("EMAIL_TO", "")
-EMAIL_FROM        = os.getenv("EMAIL_FROM", "immo-bot@noreply.com")
+EMAIL_FROM        = os.getenv("EMAIL_FROM", "aubin-bleriot.tsapong-tsague@univ-grenoble-alpes.fr")
 
 # ── Config dynamique (config.json) ───────────────────────────────────────────
 def _load_config() -> dict:

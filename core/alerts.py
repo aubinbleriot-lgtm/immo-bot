@@ -85,14 +85,13 @@ def envoyer_digest(settings, annonces: list) -> bool:
         log.warning("SendGrid non configuré — digest ignoré")
         return False
 
-    if not annonces:
-        log.info("Aucune annonce à envoyer dans le digest")
-        return True
-
     html = _build_html_digest(annonces)
 
     from datetime import date
-    subject = f"🏠 Immo Bot — {len(annonces)} opportunités du {date.today().strftime('%d/%m/%Y')}"
+    if annonces:
+        subject = f"🏠 Immo Bot — {len(annonces)} opportunités du {date.today().strftime('%d/%m/%Y')}"
+    else:
+        subject = f"🏠 Immo Bot — bilan du {date.today().strftime('%d/%m/%Y')}"
 
     try:
         resp = requests.post(
@@ -120,6 +119,13 @@ def envoyer_digest(settings, annonces: list) -> bool:
 
 def _build_html_digest(annonces: list) -> str:
     cards = ""
+    if not annonces:
+        cards = """
+        <div style="border:1px solid #e5e7eb;border-radius:12px;padding:20px;margin-bottom:20px;background:#fff;">
+          <h3 style="margin:0 0 8px;font-size:16px;color:#111827;">Aucune annonce au-dessus du seuil aujourd'hui</h3>
+          <p style="margin:0;color:#6b7280;font-size:14px;">La collecte a bien tourné, mais aucune annonce n'a dépassé le seuil du digest.</p>
+        </div>"""
+
     for a in annonces:
         score = a.get("score_final", 0)
         emoji = _VERDICT_EMOJI.get(a.get("verdict", ""), "🏠")
@@ -148,5 +154,5 @@ def _build_html_digest(annonces: list) -> str:
 <h1 style="color:#111827;">🏠 Immo Bot — Opportunités du jour</h1>
 <p style="color:#6b7280;">{len(annonces)} annonce(s) au-dessus du seuil · générées automatiquement</p>
 {cards}
-<p style="color:#9ca3af;font-size:12px;margin-top:20px;">Bot immobilier autonome · GitHub Actions · Données {', '.join(set(a.get('source','') for a in annonces))}</p>
+<p style="color:#9ca3af;font-size:12px;margin-top:20px;">Bot immobilier autonome · GitHub Actions · Données {', '.join(set(a.get('source','') for a in annonces)) or 'aucune annonce qualifiée'}</p>
 </body></html>"""

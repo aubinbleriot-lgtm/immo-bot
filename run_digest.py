@@ -42,7 +42,7 @@ def main():
     if not top:
         log.info("Aucune annonce qualifiée aujourd'hui.")
 
-        # Envoyer quand même un message Telegram de status
+        # Envoyer quand même un message de statut
         if settings.TELEGRAM_TOKEN:
             stats = db.stats()
             total = sum(stats.values())
@@ -57,11 +57,19 @@ def main():
                 json={"chat_id": settings.TELEGRAM_CHAT_ID, "text": msg, "parse_mode": "Markdown"},
                 timeout=10,
             )
+        email_ok = envoyer_digest(settings, [])
         db.close()
+        if not email_ok:
+            log.error("Digest email non envoyé — vérifier SENDGRID_API_KEY et EMAIL_FROM.")
+            sys.exit(1)
         return
 
     # Email digest
-    envoyer_digest(settings, top)
+    email_ok = envoyer_digest(settings, top)
+    if not email_ok:
+        db.close()
+        log.error("Digest email non envoyé — les annonces restent à reporter.")
+        sys.exit(1)
 
     # Résumé Telegram du digest
     if settings.TELEGRAM_TOKEN:

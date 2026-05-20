@@ -55,6 +55,7 @@ Dans ton repo GitHub → **Settings → Secrets and variables → Actions** :
 | `TELEGRAM_TOKEN` | Token du bot Telegram |
 | `TELEGRAM_CHAT_ID` | Ton Chat ID Telegram |
 | `EMAIL_TO` | Email de destination du digest |
+| `EMAIL_FROM` | Adresse expéditrice vérifiée dans SendGrid |
 | `SENDGRID_API_KEY` | Clé SendGrid (optionnel, pour email) |
 
 ### 4. Adapter les critères de recherche
